@@ -1,634 +1,618 @@
-/* ====================================================
-   Network Exam Prep – App Logic
-   ==================================================== */
+/* ── State ──────────────────────────────────────── */
+const State = {
+  view: 'home',
+  module: null,
+  quiz: null,   // { questions, current, answers, hintOpen }
+  progress: {}  // moduleId → { answered, correct }
+};
 
-const App = (() => {
-  let currentPage = 'home';
-  let quizState = null;
-  let flashState = null;
+/* ── Utilities ──────────────────────────────────── */
+const $ = id => document.getElementById(id);
+const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
+const shuffle = arr => { const a = [...arr]; for (let i = a.length-1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; };
+const LETTERS = ['A','B','C','D','E','F'];
 
-  /* --------------------------------------------------
-     ROUTER
-  -------------------------------------------------- */
-  function navigate(page, params = {}) {
-    currentPage = page;
-    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-    document.getElementById(`page-${page}`)?.classList.add('active');
-    document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.page === page));
-    window.scrollTo(0, 0);
-    if (page === 'home') renderHome();
-    if (page === 'quiz') renderQuizSelector(params.module);
-    if (page === 'predicted') renderPredicted();
-    if (page === 'notes') renderNotes();
-    if (page === 'flashcards') renderFlashcards();
-  }
+function totalAnswered() {
+  return Object.values(State.progress).reduce((s,p) => s + (p.answered||0), 0);
+}
 
-  /* --------------------------------------------------
-     HOME
-  -------------------------------------------------- */
-  function renderHome() {
-    const grid = document.getElementById('modules-grid');
-    grid.innerHTML = Object.entries(MODULES).map(([num, mod]) => `
-      <div class="module-card" style="--mod-color:${mod.color}" onclick="App.startQuiz(${num})">
-        <div class="module-card-header">
-          <div class="module-icon">${mod.icon}</div>
-          <div>
-            <div class="module-num">Module ${num}</div>
-            <div class="module-name">${mod.title}</div>
-          </div>
-        </div>
-        <div class="module-desc">${mod.description}</div>
-        <div class="module-topics">
-          ${mod.keyTopics.slice(0, 4).map(t => `<span class="topic-tag">${t}</span>`).join('')}
-        </div>
-        <div style="margin-top:14px;display:flex;gap:8px;">
-          <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();App.startQuiz(${num})">Start Quiz →</button>
-          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();App.startFlashcards(${num})">Flashcards</button>
+function updateFooter() {
+  const t = 105, a = totalAnswered();
+  $('footer-stat').textContent = `${a} / ${t} questions answered`;
+  $('footer-bar-fill').style.width = Math.round(a/t*100)+'%';
+}
+
+/* ── Router ─────────────────────────────────────── */
+function navigate(view, moduleId) {
+  State.view = view;
+  State.module = moduleId || null;
+
+  // sidebar active states
+  document.querySelectorAll('.mod-nav-item').forEach(i => i.classList.toggle('active', i.dataset.mod == moduleId));
+  document.querySelectorAll('.sidebar-link').forEach(l => l.classList.toggle('active', l.dataset.view === view && !moduleId));
+  if (moduleId) document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+
+  const inner = $('content-inner');
+  inner.innerHTML = '';
+  if (view === 'home')       renderHome(inner);
+  else if (view === 'module') renderModule(inner, moduleId);
+  else if (view === 'predicted') renderPredicted(inner);
+  else if (view === 'notes') renderNotes(inner);
+  else if (view === 'flashcards') renderFlashcards(inner);
+
+  window.scrollTo(0, 0);
+  closeMobileSidebar();
+}
+
+/* ── Sidebar ─────────────────────────────────────── */
+function buildSidebar() {
+  const list = $('module-nav-list');
+  list.innerHTML = '';
+  Object.entries(MODULES).forEach(([id, mod]) => {
+    const prog = State.progress[id] || { answered: 0, correct: 0 };
+    const total = mod.questions;
+    const pct = Math.round(prog.answered / total * 100);
+    const div = el('div', 'mod-nav-item');
+    div.dataset.mod = id;
+    div.innerHTML = `
+      <div class="mod-nav-row">
+        <span class="mod-nav-icon">${mod.icon}</span>
+        <span class="mod-nav-name">M${id} · ${mod.title}</span>
+      </div>
+      <div class="mod-nav-progress"><div class="mod-nav-progress-fill" id="mnp-${id}" style="width:${pct}%"></div></div>
+      <div class="mod-nav-count" id="mnc-${id}">${prog.answered}/${total}</div>`;
+    div.addEventListener('click', () => navigate('module', +id));
+    list.appendChild(div);
+  });
+}
+
+function refreshSidebarProgress(moduleId) {
+  const prog = State.progress[moduleId] || { answered: 0 };
+  const total = MODULES[moduleId].questions;
+  const pct = Math.round(prog.answered / total * 100);
+  const fill = $(`mnp-${moduleId}`);
+  const cnt = $(`mnc-${moduleId}`);
+  if (fill) fill.style.width = pct+'%';
+  if (cnt) cnt.textContent = `${prog.answered}/${total}`;
+  updateFooter();
+}
+
+/* Mobile */
+function closeMobileSidebar() {
+  $('sidebar').classList.remove('open');
+  $('sidebar-overlay').classList.remove('open');
+}
+$('sidebar-toggle').addEventListener('click', () => {
+  $('sidebar').classList.toggle('open');
+  $('sidebar-overlay').classList.toggle('open');
+});
+$('sidebar-overlay').addEventListener('click', closeMobileSidebar);
+
+/* ── HOME ────────────────────────────────────────── */
+function renderHome(root) {
+  const hero = el('div','home-hero');
+  hero.innerHTML = `
+    <h1>Intro to <em>Computer Networks</em><br>Midterm Workbook</h1>
+    <p>Topic recaps, practice quizzes with instant feedback, and predicted exam questions — built from your CCNA ITN slides.</p>`;
+  root.appendChild(hero);
+
+  const bar = el('div','stats-bar');
+  bar.innerHTML = `
+    <div class="stat-pill"><strong>7</strong> modules</div>
+    <div class="stat-pill"><strong>105</strong> quiz questions</div>
+    <div class="stat-pill"><strong>14</strong> predicted questions</div>
+    <div class="stat-pill"><strong>34</strong> flashcards</div>`;
+  root.appendChild(bar);
+
+  const lbl = el('div','section-label','Modules — click to open recap + quiz');
+  root.appendChild(lbl);
+
+  const grid = el('div','module-grid');
+  Object.entries(MODULES).forEach(([id, mod]) => {
+    const prog = State.progress[id] || { answered: 0 };
+    const pct = Math.round(prog.answered / mod.questions * 100);
+    const card = el('div','module-card');
+    card.style.setProperty('--mc', mod.color);
+    card.innerHTML = `
+      <div class="mc-head">
+        <div class="mc-icon">${mod.icon}</div>
+        <div class="mc-meta">
+          <div class="mc-num">Module ${id}</div>
+          <div class="mc-title">${mod.title}</div>
         </div>
       </div>
-    `).join('');
+      <div class="mc-footer">
+        <div class="mc-progress-wrap">
+          <div class="mc-progress-bar"><div class="mc-progress-fill" style="width:${pct}%"></div></div>
+          <div class="mc-progress-label">${prog.answered} / ${mod.questions} questions answered</div>
+        </div>
+        <button class="btn btn-primary btn-sm" style="background:${mod.color}">Start →</button>
+      </div>`;
+    card.addEventListener('click', () => navigate('module', +id));
+    grid.appendChild(card);
+  });
+  root.appendChild(grid);
+}
+
+/* ── MODULE PAGE ─────────────────────────────────── */
+function renderModule(root, moduleId) {
+  const mod = MODULES[moduleId];
+  const recap = MODULE_RECAP[moduleId];
+
+  // Header
+  const header = el('div','mod-page-header');
+  header.innerHTML = `
+    <div class="mph-icon">${mod.icon}</div>
+    <div class="mph-body">
+      <div class="mph-num">Module ${moduleId} · CCNA ITN</div>
+      <div class="mph-title">${mod.title}</div>
+      <div class="mph-pills">
+        <div class="mph-pill"><strong>${recap.sections.length}</strong>&nbsp;topics</div>
+        <div class="mph-pill"><strong>${QUIZ_DATA[moduleId].length}</strong>&nbsp;quiz questions</div>
+      </div>
+    </div>`;
+  root.appendChild(header);
+
+  // Recap
+  if (recap) {
+    const rs = el('div','recap-section');
+    const rl = el('div','recap-section-title','📖 Topic Recap');
+    rs.appendChild(rl);
+    recap.sections.forEach(sec => {
+      const details = document.createElement('details');
+      details.className = 'recap-block';
+      const summary = document.createElement('summary');
+      summary.textContent = sec.title;
+      details.appendChild(summary);
+
+      const body = el('div','recap-body');
+
+      if (sec.points) {
+        const ul = el('ul','recap-points');
+        sec.points.forEach(p => {
+          const li = document.createElement('li');
+          li.innerHTML = p;
+          ul.appendChild(li);
+        });
+        body.appendChild(ul);
+      }
+
+      if (sec.table) {
+        const tbl = document.createElement('table');
+        tbl.className = 'recap-table';
+        const thead = document.createElement('thead');
+        const hr = document.createElement('tr');
+        sec.table.headers.forEach(h => { const th = document.createElement('th'); th.innerHTML = h; hr.appendChild(th); });
+        thead.appendChild(hr); tbl.appendChild(thead);
+        const tbody = document.createElement('tbody');
+        sec.table.rows.forEach(row => {
+          const tr = document.createElement('tr');
+          row.forEach(cell => { const td = document.createElement('td'); td.innerHTML = cell; tr.appendChild(td); });
+          tbody.appendChild(tr);
+        });
+        tbl.appendChild(tbody);
+        body.appendChild(tbl);
+      }
+
+      if (sec.callout) {
+        const c = el('div', `callout callout-${sec.callout.type}`);
+        c.innerHTML = `<span class="callout-icon">${sec.callout.type === 'trap' ? '⚠' : '💡'}</span><span>${sec.callout.text}</span>`;
+        body.appendChild(c);
+      }
+
+      details.appendChild(body);
+      rs.appendChild(details);
+    });
+
+    // Expand first by default
+    const first = rs.querySelector('details');
+    if (first) first.open = true;
+    root.appendChild(rs);
   }
 
-  /* --------------------------------------------------
-     QUIZ
-  -------------------------------------------------- */
-  function startQuiz(moduleNum) {
-    const questions = QUIZ_DATA[moduleNum];
-    if (!questions) return;
-    quizState = {
-      module: moduleNum,
-      questions: shuffle([...questions]),
+  // Quiz
+  const quizQuestions = QUIZ_DATA[moduleId];
+  if (quizQuestions) {
+    State.quiz = {
+      moduleId,
+      questions: shuffle([...quizQuestions]),
       current: 0,
       answers: [],
-      answered: false
+      hintOpen: false
     };
-    navigate('quiz');
-    renderQuizQuestion();
+    if (!State.progress[moduleId]) State.progress[moduleId] = { answered: 0, correct: 0 };
+    const quizRoot = el('div','quiz-section');
+    quizRoot.id = 'quiz-root';
+    root.appendChild(quizRoot);
+    renderQuestion();
+  }
+}
+
+/* ── QUIZ ────────────────────────────────────────── */
+function renderQuestion() {
+  const qr = $('quiz-root');
+  if (!qr) return;
+  qr.innerHTML = '';
+
+  const { questions, current, moduleId } = State.quiz;
+  const q = questions[current];
+  const total = questions.length;
+  const mod = MODULES[moduleId];
+
+  // Header bar
+  const hbar = el('div','quiz-header-bar');
+  hbar.innerHTML = `
+    <h2>Practice Quiz</h2>
+    <div class="quiz-meta">
+      <span class="quiz-badge">Q ${current+1} of ${total}</span>
+      <span class="quiz-badge" style="color:${mod.color}">${mod.icon} Module ${moduleId}</span>
+    </div>`;
+  qr.appendChild(hbar);
+
+  // Progress
+  const pt = el('div','progress-track');
+  pt.innerHTML = `
+    <div class="progress-row"><span></span><span>${Math.round(current/total*100)}%</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:${Math.round(current/total*100)}%"></div></div>`;
+  qr.appendChild(pt);
+
+  // Card
+  const card = el('div','q-card');
+  card.innerHTML = `<div class="q-num">Question ${current+1}</div>`;
+
+  // Question text
+  const qt = el('div','q-text', q.q);
+  card.appendChild(qt);
+
+  // Multi-select badge
+  if (q.multi) {
+    card.appendChild(el('div','multi-badge',`Select ${Array.isArray(q.answer) ? q.answer.length : 1} answers`));
   }
 
-  function renderQuizSelector(moduleNum) {
-    if (moduleNum !== undefined) {
-      startQuiz(moduleNum);
-      return;
-    }
-    // Show module selector
-    const container = document.getElementById('quiz-container');
-    container.innerHTML = `
-      <div class="section-title">Choose a Module to Quiz</div>
-      <div class="modules-grid">
-        ${Object.entries(MODULES).map(([num, mod]) => `
-          <div class="module-card" style="--mod-color:${mod.color}" onclick="App.startQuiz(${num})">
-            <div class="module-card-header">
-              <div class="module-icon">${mod.icon}</div>
-              <div>
-                <div class="module-num">Module ${num} · ${QUIZ_DATA[num].length} questions</div>
-                <div class="module-name">${mod.title}</div>
-              </div>
-            </div>
-            <div style="margin-top:12px">
-              <button class="btn btn-primary btn-sm">Start Quiz →</button>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }
+  // Hint panel
+  const hint = el('div','hint-panel');
+  hint.id = 'hint-panel';
+  hint.innerHTML = `<span class="hint-label">💡 Hint:</span><span>${q.hint || ''}</span>`;
+  card.appendChild(hint);
 
-  function renderQuizQuestion() {
-    const { questions, current, module: mod } = quizState;
-    const q = questions[current];
-    const total = questions.length;
-    const pct = Math.round((current / total) * 100);
-    const modInfo = MODULES[mod];
-    const letters = ['A','B','C','D','E','F'];
+  // Options
+  const opts = el('div','options');
+  opts.id = 'options';
+  q.options.forEach((opt, i) => {
+    const btn = el('button','opt-btn');
+    btn.dataset.idx = i;
+    btn.innerHTML = `<span class="opt-letter">${LETTERS[i]}</span><span>${opt}</span>`;
+    btn.addEventListener('click', () => selectOption(i));
+    opts.appendChild(btn);
+  });
+  card.appendChild(opts);
 
-    const container = document.getElementById('quiz-container');
-    container.innerHTML = `
-      <div class="quiz-page">
-        <div class="quiz-header">
-          <div class="mod-icon">${modInfo.icon}</div>
-          <div class="quiz-header-info">
-            <h2>Module ${mod}: ${modInfo.title}</h2>
-            <p>Practice Quiz</p>
-          </div>
-          <div class="quiz-meta">
-            <span class="meta-badge">Q ${current + 1} of ${total}</span>
-            <button class="btn btn-ghost btn-sm" onclick="App.navigate('quiz')">← Back</button>
-          </div>
-        </div>
+  // Footer
+  const footer = el('div','q-footer');
+  footer.innerHTML = `
+    <div class="q-footer-left">
+      <button class="hint-btn" id="hint-btn" ${!q.hint ? 'style="display:none"' : ''}>💡 Hint</button>
+      <button class="skip-btn" id="skip-btn">Skip</button>
+    </div>
+    <div>
+      <span class="feedback-badge" id="feedback-badge"></span>
+      <button class="btn btn-primary" id="next-btn" style="display:none">Next →</button>
+    </div>`;
+  card.appendChild(footer);
+  qr.appendChild(card);
 
-        <div class="progress-bar-wrap">
-          <div class="progress-bar-fill" style="width:${pct}%"></div>
-        </div>
+  State.quiz.selectedMulti = [];
+  State.quiz.answered = false;
 
-        <div class="question-card">
-          <div class="question-num">Question ${current + 1} of ${total}</div>
-          <div class="question-text">${q.q}</div>
-          ${q.multi ? `<div class="multi-hint">⚡ Select all that apply (${Array.isArray(q.answer) ? q.answer.length : 1} answers)</div>` : ''}
-          <div class="options-list" id="options-list">
-            ${q.options.map((opt, i) => `
-              <button class="option-btn" id="opt-${i}" onclick="App.selectOption(${i})" data-idx="${i}">
-                <span class="option-letter">${letters[i]}</span>
-                <span>${opt}</span>
-              </button>
-            `).join('')}
-          </div>
-          <div class="explanation-box" id="explanation-box"></div>
-        </div>
-
-        <div class="quiz-controls">
-          <div id="quiz-feedback" style="font-size:14px;font-weight:600;"></div>
-          <div style="display:flex;gap:8px;">
-            <button class="btn btn-ghost btn-sm" onclick="App.skipQuestion()" id="skip-btn">Skip</button>
-            <button class="btn btn-primary" id="next-btn" onclick="App.nextQuestion()" style="display:none;">
-              ${current + 1 < total ? 'Next Question →' : 'See Results'}
-            </button>
-          </div>
-        </div>
-      </div>
-    `;
-
-    quizState.answered = false;
-    quizState.selectedMulti = [];
-  }
-
-  function selectOption(idx) {
-    const q = quizState.questions[quizState.current];
-    if (quizState.answered && !q.multi) return;
-
-    if (q.multi) {
-      const btn = document.getElementById(`opt-${idx}`);
-      const si = quizState.selectedMulti.indexOf(idx);
-      if (si === -1) {
-        quizState.selectedMulti.push(idx);
-        btn.classList.add('selected');
-      } else {
-        quizState.selectedMulti.splice(si, 1);
-        btn.classList.remove('selected');
-      }
-
-      // Check if they've selected required number
-      const required = q.answer.length;
-      if (quizState.selectedMulti.length === required) {
-        submitMulti();
-      }
-      return;
-    }
-
-    // Single answer
-    if (quizState.answered) return;
-    quizState.answered = true;
-    const correct = idx === q.answer;
-    quizState.answers.push({ correct, selected: idx, answer: q.answer });
-
-    document.querySelectorAll('.option-btn').forEach(b => b.disabled = true);
-
-    const btn = document.getElementById(`opt-${idx}`);
-    btn.classList.add(correct ? 'correct' : 'wrong');
-    if (!correct) {
-      document.getElementById(`opt-${q.answer}`).classList.add('correct');
-    }
-
-    const fb = document.getElementById('quiz-feedback');
-    fb.textContent = correct ? '✓ Correct!' : '✗ Incorrect';
-    fb.style.color = correct ? 'var(--green)' : 'var(--red)';
-
-    const expBox = document.getElementById('explanation-box');
-    const letters = ['A','B','C','D','E','F'];
-    expBox.innerHTML = `<strong>Correct Answer: ${letters[q.answer]}.</strong> ${q.explanation || ''}`;
-    expBox.classList.add('show');
-
-    document.getElementById('next-btn').style.display = 'inline-flex';
-    document.getElementById('skip-btn').style.display = 'none';
-  }
-
-  function submitMulti() {
-    const q = quizState.questions[quizState.current];
-    quizState.answered = true;
-    document.querySelectorAll('.option-btn').forEach(b => b.disabled = true);
-
-    const correctSet = new Set(q.answer);
-    const selectedSet = new Set(quizState.selectedMulti);
-    const isCorrect = q.answer.every(a => selectedSet.has(a)) && quizState.selectedMulti.every(s => correctSet.has(s));
-
-    quizState.answers.push({ correct: isCorrect, selected: quizState.selectedMulti, answer: q.answer });
-
-    q.options.forEach((_, i) => {
-      const btn = document.getElementById(`opt-${i}`);
-      if (correctSet.has(i)) btn.classList.add('correct');
-      else if (selectedSet.has(i)) btn.classList.add('wrong');
+  // Hint toggle
+  const hintBtn = $('hint-btn');
+  if (hintBtn) {
+    hintBtn.addEventListener('click', () => {
+      const panel = $('hint-panel');
+      const open = panel.classList.contains('visible');
+      panel.classList.toggle('visible', !open);
+      hintBtn.textContent = open ? '💡 Hint' : '🙈 Hide Hint';
     });
-
-    const fb = document.getElementById('quiz-feedback');
-    fb.textContent = isCorrect ? '✓ All correct!' : '✗ Not quite';
-    fb.style.color = isCorrect ? 'var(--green)' : 'var(--red)';
-
-    const letters = ['A','B','C','D','E','F'];
-    const expBox = document.getElementById('explanation-box');
-    expBox.innerHTML = `<strong>Correct Answers: ${q.answer.map(a => letters[a]).join(', ')}.</strong> ${q.explanation || ''}`;
-    expBox.classList.add('show');
-
-    document.getElementById('next-btn').style.display = 'inline-flex';
-    document.getElementById('skip-btn').style.display = 'none';
   }
 
-  function skipQuestion() {
-    quizState.answers.push({ correct: false, skipped: true, answer: quizState.questions[quizState.current].answer });
-    nextQuestion();
-  }
+  $('skip-btn').addEventListener('click', skipQuestion);
+  $('next-btn').addEventListener('click', nextQuestion);
+}
 
-  function nextQuestion() {
-    quizState.current++;
-    if (quizState.current >= quizState.questions.length) {
-      renderResults();
+function selectOption(idx) {
+  if (State.quiz.answered) return;
+  const q = State.quiz.questions[State.quiz.current];
+
+  if (q.multi) {
+    const btn = document.querySelector(`.opt-btn[data-idx="${idx}"]`);
+    const si = State.quiz.selectedMulti.indexOf(idx);
+    if (si === -1) {
+      State.quiz.selectedMulti.push(idx);
+      btn.classList.add('selected');
     } else {
-      renderQuizQuestion();
+      State.quiz.selectedMulti.splice(si, 1);
+      btn.classList.remove('selected');
+    }
+    if (State.quiz.selectedMulti.length === q.answer.length) {
+      submitMulti();
+    }
+    return;
+  }
+
+  // Single answer
+  document.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('selected'));
+  const btn = document.querySelector(`.opt-btn[data-idx="${idx}"]`);
+  btn.classList.add('selected');
+  submitSingle(idx);
+}
+
+function submitSingle(idx) {
+  State.quiz.answered = true;
+  const q = State.quiz.questions[State.quiz.current];
+  const correct = idx === q.answer;
+
+  State.quiz.answers.push({ correct, selected: idx, answer: q.answer });
+  if (!State.progress[State.quiz.moduleId]) State.progress[State.quiz.moduleId] = { answered:0, correct:0 };
+  State.progress[State.quiz.moduleId].answered++;
+  if (correct) State.progress[State.quiz.moduleId].correct++;
+  refreshSidebarProgress(State.quiz.moduleId);
+
+  // Disable all buttons + apply classes
+  document.querySelectorAll('.opt-btn').forEach(b => {
+    b.disabled = true;
+    b.classList.add('answered');
+    const i = +b.dataset.idx;
+    if (i === q.answer) b.classList.add('is-correct');
+    else if (i === idx && !correct) b.classList.add('is-wrong');
+  });
+
+  // Show wrong explanation for selected wrong option
+  if (!correct && q.wrongExp && q.wrongExp[idx]) {
+    const btn = document.querySelector(`.opt-btn[data-idx="${idx}"]`);
+    const exp = el('div','opt-explanation exp-wrong show');
+    exp.innerHTML = `<span class="exp-label">Why this is wrong:</span>${q.wrongExp[idx]}`;
+    btn.appendChild(exp);
+  }
+
+  // Show correct explanation
+  if (q.explanation) {
+    const correctBtn = document.querySelector(`.opt-btn[data-idx="${q.answer}"]`);
+    const exp = el('div',`opt-explanation exp-right show`);
+    exp.innerHTML = `<span class="exp-label">${correct ? '✓ Correct:' : 'Correct answer:'}</span>${q.explanation}`;
+    correctBtn.appendChild(exp);
+  }
+
+  showFeedback(correct);
+}
+
+function submitMulti() {
+  State.quiz.answered = true;
+  const q = State.quiz.questions[State.quiz.current];
+  const sel = State.quiz.selectedMulti;
+  const correctSet = new Set(q.answer);
+  const selSet = new Set(sel);
+  const isCorrect = q.answer.every(a => selSet.has(a)) && sel.every(s => correctSet.has(s));
+
+  State.quiz.answers.push({ correct: isCorrect, selected: sel, answer: q.answer, multi: true });
+  if (!State.progress[State.quiz.moduleId]) State.progress[State.quiz.moduleId] = { answered:0, correct:0 };
+  State.progress[State.quiz.moduleId].answered++;
+  if (isCorrect) State.progress[State.quiz.moduleId].correct++;
+  refreshSidebarProgress(State.quiz.moduleId);
+
+  document.querySelectorAll('.opt-btn').forEach(b => {
+    b.disabled = true;
+    b.classList.add('answered');
+    const i = +b.dataset.idx;
+    if (correctSet.has(i)) b.classList.add('is-correct');
+    else if (selSet.has(i)) b.classList.add('is-wrong');
+  });
+
+  if (q.explanation) {
+    const firstCorrectBtn = document.querySelector(`.opt-btn[data-idx="${q.answer[0]}"]`);
+    if (firstCorrectBtn) {
+      const exp = el('div','opt-explanation exp-right show');
+      exp.innerHTML = `<span class="exp-label">${isCorrect ? '✓ Correct:' : 'Correct answers:'}</span>${q.explanation}`;
+      firstCorrectBtn.appendChild(exp);
     }
   }
 
-  function renderResults() {
-    const { answers, questions, module: mod } = quizState;
-    const correct = answers.filter(a => a.correct).length;
-    const total = answers.length;
-    const pct = Math.round((correct / total) * 100);
-    const grade = pct >= 80 ? 'great' : pct >= 60 ? 'ok' : 'poor';
-    const letters = ['A','B','C','D','E','F'];
+  showFeedback(isCorrect);
+}
 
-    const container = document.getElementById('quiz-container');
-    container.innerHTML = `
-      <div class="quiz-page">
-        <div class="results-card">
-          <div class="score-circle ${grade}">
-            <div>${pct}%</div>
-            <div class="score-pct">${grade === 'great' ? '🎉' : grade === 'ok' ? '📚' : '💪'}</div>
-          </div>
-          <h2 style="font-size:22px;font-weight:700;margin-bottom:8px;">
-            ${grade === 'great' ? 'Excellent work!' : grade === 'ok' ? 'Good effort!' : 'Keep studying!'}
-          </h2>
-          <p style="color:var(--text2);font-size:14px;">
-            Module ${mod}: ${MODULES[mod].title}
-          </p>
-          <div class="results-stats">
-            <div class="result-stat"><div class="val" style="color:var(--green)">${correct}</div><div class="lbl">Correct</div></div>
-            <div class="result-stat"><div class="val" style="color:var(--red)">${total - correct}</div><div class="lbl">Wrong</div></div>
-            <div class="result-stat"><div class="val">${total}</div><div class="lbl">Total</div></div>
-          </div>
-          <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:32px;">
-            <button class="btn btn-primary" onclick="App.startQuiz(${mod})">Retry Quiz</button>
-            <button class="btn btn-ghost" onclick="App.navigate('quiz')">Other Modules</button>
-            <button class="btn btn-ghost" onclick="App.navigate('predicted')">Predicted Q's</button>
-          </div>
-          <div class="review-list">
-            <div class="section-title" style="margin-bottom:16px">Review Answers</div>
-            ${questions.map((q, i) => {
-              const ans = answers[i];
-              if (!ans) return '';
-              const isC = ans.correct;
-              const selectedArr = Array.isArray(ans.selected) ? ans.selected : [ans.selected];
-              const correctArr = Array.isArray(ans.answer) ? ans.answer : [ans.answer];
-              return `
-                <div class="review-item ${isC ? 'review-correct' : 'review-wrong'}">
-                  <span class="ri-badge ${isC ? 'correct' : 'wrong'}">${isC ? '✓' : '✗'}</span>
-                  <div class="ri-q">Q${i+1}. ${q.q}</div>
-                  <div class="ri-ans">
-                    ${ans.skipped ? '<em>Skipped</em>' :
-                      `Your answer: ${selectedArr.map(s => letters[s]).join(', ')} |
-                       Correct: ${correctArr.map(s => letters[s]).join(', ')}`
-                    }
-                  </div>
-                </div>
-              `;
-            }).join('')}
-          </div>
-        </div>
-      </div>
-    `;
+function showFeedback(correct) {
+  const fb = $('feedback-badge');
+  fb.textContent = correct ? '✓ Correct!' : '✗ Incorrect';
+  fb.className = `feedback-badge show ${correct ? 'feedback-correct' : 'feedback-wrong'}`;
+  $('next-btn').style.display = 'inline-flex';
+  $('skip-btn').style.display = 'none';
+  if ($('hint-btn')) $('hint-btn').style.display = 'none';
+}
+
+function skipQuestion() {
+  const q = State.quiz.questions[State.quiz.current];
+  State.quiz.answers.push({ skipped: true, correct: false, answer: q.answer });
+  if (!State.progress[State.quiz.moduleId]) State.progress[State.quiz.moduleId] = { answered:0, correct:0 };
+  State.progress[State.quiz.moduleId].answered++;
+  refreshSidebarProgress(State.quiz.moduleId);
+  nextQuestion();
+}
+
+function nextQuestion() {
+  State.quiz.current++;
+  if (State.quiz.current >= State.quiz.questions.length) {
+    renderResults();
+  } else {
+    renderQuestion();
+    window.scrollTo(0, document.getElementById('quiz-root').offsetTop - 20);
   }
+}
 
-  /* --------------------------------------------------
-     PREDICTED QUESTIONS
-  -------------------------------------------------- */
-  function renderPredicted() {
-    const container = document.getElementById('predicted-container');
-    const byModule = {};
-    PREDICTED_QUESTIONS.forEach(q => {
-      if (!byModule[q.module]) byModule[q.module] = [];
-      byModule[q.module].push(q);
+/* ── RESULTS ─────────────────────────────────────── */
+function renderResults() {
+  const qr = $('quiz-root');
+  qr.innerHTML = '';
+  const { answers, questions, moduleId } = State.quiz;
+  const correct = answers.filter(a => a.correct).length;
+  const total = answers.length;
+  const pct = Math.round(correct/total*100);
+  const grade = pct >= 80 ? 'great' : pct >= 60 ? 'ok' : 'poor';
+
+  const card = el('div','results-card');
+  card.innerHTML = `
+    <div class="score-ring ${grade}">
+      ${pct}%<span>${grade==='great'?'🎉':grade==='ok'?'📚':'💪'}</span>
+    </div>
+    <h2 style="font-size:18px;font-weight:700;margin-bottom:4px">${grade==='great'?'Excellent!':grade==='ok'?'Good effort!':'Keep studying!'}</h2>
+    <p style="font-size:12px;color:var(--text2)">Module ${moduleId}: ${MODULES[moduleId].title}</p>
+    <div class="results-row">
+      <div class="result-stat"><div class="v" style="color:var(--green)">${correct}</div><div class="l">Correct</div></div>
+      <div class="result-stat"><div class="v" style="color:var(--red)">${total-correct}</div><div class="l">Wrong / Skipped</div></div>
+      <div class="result-stat"><div class="v">${total}</div><div class="l">Total</div></div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:24px">
+      <button class="btn btn-primary" onclick="App.retryQuiz()">Retry Quiz</button>
+      <button class="btn btn-ghost" onclick="App.navigate('home')">All Modules</button>
+      <button class="btn btn-ghost" onclick="App.navigate('predicted')">Predicted Q's</button>
+    </div>`;
+
+  const rl = el('div','review-list');
+  const lbl = el('div','section-label','Answer Review');
+  rl.appendChild(lbl);
+  questions.forEach((q, i) => {
+    const a = answers[i];
+    if (!a) return;
+    const item = el('div',`review-item ${a.correct?'rc':'rw'}`);
+    const selArr = Array.isArray(a.selected) ? a.selected : (a.selected !== undefined ? [a.selected] : []);
+    const corrArr = Array.isArray(a.answer) ? a.answer : [a.answer];
+    item.innerHTML = `
+      <span class="review-tag ${a.correct?'correct':'wrong'}">${a.correct?'✓':'✗'}</span>
+      <div class="review-q">Q${i+1}. ${q.q.length > 80 ? q.q.slice(0,80)+'…' : q.q}</div>
+      <div class="review-ans">${a.skipped ? '<em>Skipped</em>' : `Your answer: ${selArr.map(s=>LETTERS[s]).join(', ')} &nbsp;·&nbsp; Correct: ${corrArr.map(s=>LETTERS[s]).join(', ')}`}</div>`;
+    rl.appendChild(item);
+  });
+  card.appendChild(rl);
+  qr.appendChild(card);
+}
+
+/* ── PREDICTED ───────────────────────────────────── */
+function renderPredicted(root) {
+  const intro = el('div','page-intro');
+  intro.innerHTML = `<h1>Predicted Midterm Questions</h1><p>Based on CCNA 200-301 exam patterns. Click a question to reveal options, hint, and explanation.</p>`;
+  root.appendChild(intro);
+
+  const note = el('div','notice');
+  note.innerHTML = `<span>⚡</span><span>These question styles and topics appear most frequently on CCNA Introduction to Networks exams. Master these and you'll be ready for similar questions in your midterm.</span>`;
+  root.appendChild(note);
+
+  const byMod = {};
+  PREDICTED_QUESTIONS.forEach(q => { if (!byMod[q.module]) byMod[q.module] = []; byMod[q.module].push(q); });
+
+  Object.entries(byMod).forEach(([mod, qs]) => {
+    const group = el('div','predicted-group');
+    group.innerHTML = `<div class="predicted-group-title">${MODULES[mod].icon} Module ${mod}: ${MODULES[mod].title}</div>`;
+    qs.forEach((q, qi) => {
+      const card = el('div','pred-card');
+      card.innerHTML = `
+        <div class="pred-head">
+          <div class="pred-q">${q.q}</div>
+          <span class="pred-chevron">▼</span>
+        </div>
+        <div class="pred-body">
+          ${q.hint ? `<div class="pred-hint">💡 <strong>Hint:</strong> ${q.hint}</div>` : ''}
+          <ul class="pred-options">
+            ${q.options.map((o,i) => `<li class="${i===q.answer?'ans':''}"><span class="pred-opt-letter">${LETTERS[i]}.</span><span>${o}</span></li>`).join('')}
+          </ul>
+          <div class="pred-exp"><strong>✓ ${LETTERS[q.answer]} — Explanation:</strong> ${q.explanation}</div>
+        </div>`;
+      card.querySelector('.pred-head').addEventListener('click', () => card.classList.toggle('open'));
+      group.appendChild(card);
     });
+    root.appendChild(group);
+  });
+}
 
-    const letters = ['A','B','C','D'];
-    container.innerHTML = `
-      <div class="hint-box">💡 These questions are predicted based on CCNA 200-301 exam patterns and match the topics in your modules. Click a question to reveal options and the answer.</div>
-      ${Object.entries(byModule).map(([mod, qs]) => `
-        <div class="predicted-section">
-          <h3>${MODULES[mod].icon} Module ${mod}: ${MODULES[mod].title}</h3>
-          ${qs.map((q, qi) => `
-            <div class="predicted-card" onclick="App.togglePredicted(this)">
-              <span class="module-tag">Module ${q.module}</span>
-              <div class="predicted-q">${q.q}</div>
-              <div class="predicted-body">
-                <ul class="predicted-options">
-                  ${q.options.map((opt, i) => `
-                    <li class="${i === q.answer ? 'ans-correct' : ''}">
-                      <span class="opt-letter">${letters[i]}.</span>
-                      <span>${opt}</span>
-                    </li>
-                  `).join('')}
-                </ul>
-                <div class="predicted-exp">
-                  <strong>Answer: ${letters[q.answer]} — Explanation:</strong> ${q.explanation}
-                </div>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      `).join('')}
-    `;
-  }
+/* ── NOTES ───────────────────────────────────────── */
+const NOTES_DATA = {
+  1: { title:"Networking Today", icon:"🌐", items:["Host/End device: any device that sends or receives data","Server provides services; Client requests them; Peer-to-peer: both roles on one device","LAN: small area (office/home) · WAN: large area, connects multiple LANs","Internet = global LANs+WANs · Intranet = private internal · Extranet = controlled external","BYOD: Bring Your Own Device — personal devices on corporate network","QoS: prioritizes voice/video traffic to ensure low latency","Cloud: internet-based storage/computing accessible from anywhere","Unicast=1→1 · Multicast=1→group · Broadcast=1→all"] },
+  2: { title:"IOS Configuration", icon:"⚙️",  items:["User EXEC (>) → limited monitoring only · type 'enable' to go up","Privileged EXEC (#) → full access · type 'configure terminal' for config mode","Global Config (config)# → device-wide · Interface (config-if)# · Line (config-line)#","Ctrl+Z / 'end' → jump to Privileged EXEC · 'exit' → go back one level","service password-encryption: encrypts all plain-text passwords (Type 7)","enable secret [pw]: MD5 encrypted privileged password — stronger than enable password","copy running-config startup-config → save RAM to NVRAM (persists on reload)","SVI = Switch Virtual Interface: logical IP for remote switch management (interface vlan 1)","show ip interface brief: one-line summary of all interfaces and status"] },
+  3: { title:"Protocols & Models", icon:"📋", items:["OSI 7: Physical, Data Link, Network, Transport, Session, Presentation, Application","TCP/IP 4: Network Access = OSI 1+2 · Internet = OSI 3 · Transport = OSI 4 · Application = OSI 5-7","Encapsulation: add headers going DOWN stack · De-encapsulation: remove going UP","PDUs: Data (App) → Segment (Transport) → Packet (Network) → Frame (Data Link) → Bits (Physical)","TCP: connection-oriented, reliable, sequenced · UDP: connectionless, fast, no guarantees","Open standards: any vendor can implement → interoperability between different systems"] },
+  4: { title:"Physical Layer", icon:"🔌", items:["Bandwidth: max capacity (theoretical) · Throughput: actual measured rate · Latency: total delay","Attenuation: signal loss over distance — reason for cable length limits","Crosstalk: interference from adjacent wire pairs — reduced by twisting","UTP max length: 100 m · Connector: RJ-45 · Types: Cat5e, Cat6","Straight-through: unlike devices (PC↔switch) · Crossover: like devices (PC↔PC)","Single-mode fiber: laser, km range · Multi-mode fiber: LED, ~550 m — immune to EMI","Wireless 802.11: CSMA/CA · Interfered by microwaves and cordless phones"] },
+  6: { title:"Data Link Layer", icon:"🔗", items:["LLC sublayer: identifies upper-layer protocol (software) · MAC sublayer: addressing + access control (hardware)","Frame: Header (dest MAC, src MAC, type) | Data | Trailer (FCS/CRC)","CRC in FCS trailer: detects errors. If mismatch → frame DISCARDED (not corrected)","Broadcast MAC: FF:FF:FF:FF:FF:FF · Multicast MAC: starts 01:00:5E","CSMA/CD: wired Ethernet half-duplex · CSMA/CA: 802.11 wireless · Full-duplex: no arbitration needed","Store-and-forward: checks CRC → accurate · Cut-through: reads dest MAC only → fast","Fast-forward: lowest latency · Fragment-free: reads first 64 bytes · Store-and-forward: highest accuracy"] },
+  8: { title:"Network Layer", icon:"🗺️",  items:["IP is C-B-M: Connectionless, Best-effort, Media-independent","TTL: decremented by 1 at each router hop → dropped at 0 (prevents loops)","Protocol field: 6=TCP, 17=UDP, 1=ICMP — identifies Layer 4 protocol","IPv4: 32-bit, ~4.3B addresses · IPv6: 128-bit, 340 undecillion, fixed 40-byte header","IPv6: no broadcast, uses multicast · no fragmentation in transit · built-in IPsec","ARP: resolves known IPv4 address → unknown MAC on local network","ARP request: broadcast (FF:FF:FF:FF:FF:FF) · ARP reply: unicast","Default gateway: IP address of router interface on same subnet as host","For local traffic: direct ARP · For remote traffic: ARP for gateway MAC then forward"] },
+  16: { title:"Network Security", icon:"🔒", items:["Virus: needs host file, user action to spread · Worm: self-replicates automatically · Trojan: disguised as legit software","Reconnaissance: info gathering (nslookup, ping sweep) · DoS: flood to deny service · MitM: intercept between two parties","Stateful Packet Inspection: tracks connection state — blocks unsolicited inbound traffic","IDS: detects and alerts · IPS: detects and blocks in real time","AAA: Authentication (who?) · Authorization (what?) · Accounting (what did you do?)","SSH requires: unique hostname + ip domain-name + RSA keys + local user account","login block-for [s] attempts [n] within [s]: blocks brute-force login attacks","enable secret: MD5 (stronger) · service password-encryption: Type 7 (weaker, all passwords)"] }
+};
+function renderNotes(root) {
+  const intro = el('div','page-intro');
+  intro.innerHTML = `<h1>Study Notes</h1><p>Key facts per module for quick review before your exam.</p>`;
+  root.appendChild(intro);
+  const grid = el('div','notes-grid');
+  Object.entries(NOTES_DATA).forEach(([mod, note]) => {
+    const card = el('div','note-card');
+    card.innerHTML = `<h3>${note.icon} Module ${mod}: ${note.title}</h3>
+      <ul class="note-list">${note.items.map(i => `<li>${i}</li>`).join('')}</ul>`;
+    grid.appendChild(card);
+  });
+  root.appendChild(grid);
+}
 
-  function togglePredicted(el) {
-    el.classList.toggle('open');
-  }
+/* ── FLASHCARDS ──────────────────────────────────── */
+function renderFlashcards(root) {
+  const intro = el('div','page-intro');
+  intro.innerHTML = `<h1>Flashcards</h1><p>Click a card to flip it. ${FLASHCARDS.length} cards covering all 7 modules.</p>`;
+  root.appendChild(intro);
 
-  /* --------------------------------------------------
-     STUDY NOTES
-  -------------------------------------------------- */
-  const NOTES = {
-    1: {
-      title: "Networking Today", icon: "🌐",
-      items: [
-        "Host / End device: any device that sends or receives data on the network",
-        "Intermediary devices: switches, routers, firewalls, WAPs — interconnect end devices",
-        "LAN: small geographic area (home, office); WAN: large geographic area (cities, countries)",
-        "Internet = worldwide collection of interconnected LANs & WANs",
-        "Intranet = private internal network; Extranet = controlled access for external partners",
-        "SOHO: Small Office/Home Office — a small network connecting a few devices",
-        "BYOD: Bring Your Own Device — personal devices on corporate network",
-        "QoS: Quality of Service — prioritizes time-sensitive traffic like voice & video",
-        "Cloud: storing/accessing data & apps over the internet (not local hardware)",
-        "Physical topology: physical location of cables & devices; Logical topology: data flow path",
-        "Unicast = 1-to-1; Multicast = 1-to-group; Broadcast = 1-to-all"
-      ]
-    },
-    2: {
-      title: "IOS Configuration", icon: "⚙️",
-      items: [
-        "User EXEC mode (>) — limited monitoring only; type 'enable' to elevate",
-        "Privileged EXEC mode (#) — full device access; type 'configure terminal' for config",
-        "Global Config mode (config)# — device-wide settings",
-        "Line config mode (config-line)# — console / vty / aux line settings",
-        "Interface config mode (config-if)# — individual interface settings",
-        "Ctrl+Z or 'end' — return directly to Privileged EXEC from any submode",
-        "'exit' — go back one level in the command hierarchy",
-        "Tab key — auto-completes partially typed commands",
-        "Ctrl+Shift+6 — interrupt a running process (e.g., ping)",
-        "service password-encryption — encrypts all plain-text passwords in config",
-        "enable secret [pass] — sets an encrypted privileged EXEC password (stronger than enable password)",
-        "copy running-config startup-config — saves RAM config to NVRAM",
-        "SVI (Switch Virtual Interface) — logical interface for remote management of a switch",
-        "show ip interface brief — summary view of all interfaces and their status"
-      ]
-    },
-    3: {
-      title: "Protocols & OSI/TCP-IP Models", icon: "📋",
-      items: [
-        "OSI: 7 layers — Physical, Data Link, Network, Transport, Session, Presentation, Application",
-        "TCP/IP: 4 layers — Network Access, Internet, Transport, Application",
-        "TCP/IP Network Access ≈ OSI Physical + Data Link",
-        "TCP/IP Internet ≈ OSI Network",
-        "TCP/IP Application ≈ OSI Session + Presentation + Application",
-        "Encapsulation: data wrapped with headers/trailers as it travels down the stack",
-        "De-encapsulation: headers/trailers removed as data travels up the stack",
-        "PDUs by layer — Data (App), Segment (Transport), Packet (Network), Frame (Data Link), Bits (Physical)",
-        "Protocol suite: a group of related protocols that work together (e.g., TCP/IP)",
-        "Open standards promote interoperability and competition; not tied to one vendor",
-        "IETF develops internet standards; IEEE develops networking standards (802.x)",
-        "TCP = connection-oriented, reliable; UDP = connectionless, fast/unreliable"
-      ]
-    },
-    4: {
-      title: "Physical Layer", icon: "🔌",
-      items: [
-        "Physical layer encodes bits and creates electrical/optical/radio signals on the medium",
-        "Bandwidth = maximum data capacity of the medium (bits per second)",
-        "Throughput = actual measured data rate; always ≤ bandwidth",
-        "Latency = time delay from source to destination (includes propagation + processing delay)",
-        "Goodput = useful data throughput (overhead removed)",
-        "Attenuation = signal loss over distance",
-        "Crosstalk = interference from adjacent wire pairs — reduced by TWISTING wire pairs",
-        "UTP: Unshielded Twisted Pair — most common, cheap, 100m max, RJ-45 connector",
-        "STP: Shielded Twisted Pair — better noise protection, more expensive",
-        "Coaxial cable: single conductor, used in cable TV and older Ethernet",
-        "Single-mode fiber: tiny core, lasers, long distance; Multi-mode fiber: larger core, LEDs, shorter",
-        "Fiber immune to EMI/RFI; more expensive to install than copper",
-        "Straight-through cable: connects UNLIKE devices (PC↔switch, router↔switch)",
-        "Crossover cable: connects LIKE devices (PC↔PC, switch↔switch) — less needed with auto-MDIX",
-        "Wireless 802.11 uses CSMA/CA (collision avoidance); affected by microwaves & cordless phones"
-      ]
-    },
-    6: {
-      title: "Data Link Layer", icon: "🔗",
-      items: [
-        "Data Link provides node-to-node delivery; divided into LLC and MAC sublayers",
-        "LLC (Logical Link Control): identifies upper-layer protocol in use; implemented in software",
-        "MAC (Media Access Control): hardware addressing + media access; implemented in hardware (NIC)",
-        "Frame structure: Header | Data | Trailer",
-        "Frame Check Sequence (FCS) / CRC in trailer — used for error detection",
-        "MAC address: 48-bit flat address burned into NIC; used for local delivery only",
-        "Broadcast MAC: FF:FF:FF:FF:FF:FF — all devices receive",
-        "Multicast MAC: starts with 01:00:5E — specific group of devices",
-        "Half-duplex: one device sends at a time; Full-duplex: simultaneous send/receive",
-        "CSMA/CD: used by legacy Ethernet (half-duplex); detects collisions after they occur",
-        "CSMA/CA: used by 802.11 WLAN; avoids collisions before they occur",
-        "Store-and-forward switching: buffers entire frame, checks CRC — lowest error rate",
-        "Cut-through switching: forwards after reading destination MAC only — lowest latency",
-        "Fast-forward: cut-through, lowest latency",
-        "Fragment-free: reads first 64 bytes before forwarding — compromise between the two"
-      ]
-    },
-    8: {
-      title: "Network Layer", icon: "🗺️",
-      items: [
-        "Network layer provides end-to-end logical addressing and routing",
-        "IP is connectionless (no session before sending), best-effort (no guaranteed delivery), media-independent",
-        "IPv4 header key fields: Version, TTL, Protocol, Source IP, Destination IP, Header Checksum, DS",
-        "TTL: decremented by 1 at each router; packet dropped when TTL = 0",
-        "Protocol field: identifies upper-layer protocol (6=TCP, 17=UDP, 1=ICMP)",
-        "IPv4: 32-bit address, ~4.3 billion addresses — nearly exhausted",
-        "IPv6: 128-bit address, vastly larger space; fixed 40-byte header; no broadcast",
-        "IPv6 improvements: simplified header, auto-config (SLAAC), built-in IPsec support",
-        "IPv6 uses Hop Limit field instead of TTL",
-        "Routing: routers forward packets based on destination IP + routing table",
-        "Default gateway: router on the same network as the host; used to reach remote networks",
-        "ARP: resolves IPv4 address to MAC address on the local network",
-        "ARP request sent as broadcast (FF:FF:FF:FF:FF:FF); reply is unicast",
-        "ARP table/cache: stores IP-to-MAC mappings; entries time out",
-        "IPv6 uses Neighbor Discovery (NDP) with Neighbor Solicitation/Advertisement instead of ARP",
-        "Loopback address: 127.0.0.1 — tests the local TCP/IP stack"
-      ]
-    },
-    16: {
-      title: "Network Security", icon: "🔒",
-      items: [
-        "Three types of vulnerability: Technological, Configuration, Security policy",
-        "Virus: attaches to files, needs user action to spread",
-        "Worm: self-replicates, spreads automatically without host file",
-        "Trojan horse: malware disguised as legitimate software",
-        "Spyware: secretly collects information; Ransomware: encrypts files for ransom",
-        "Reconnaissance attack: information gathering / network mapping (nslookup, fping, ping sweep)",
-        "Access attack: exploits authentication weaknesses to gain unauthorized access",
-        "DoS attack: overwhelms target to deny service to legitimate users",
-        "DDoS: Distributed DoS — uses multiple compromised hosts",
-        "Man-in-the-middle: intercepts communication between two parties",
-        "Defense-in-depth: layered security — no single point of failure",
-        "Firewall: controls traffic between network zones; Stateful Packet Inspection tracks connection state",
-        "IDS (Intrusion Detection System): detects & alerts; IPS (Prevention): detects & blocks",
-        "AAA framework: Authentication (who are you?), Authorization (what can you do?), Accounting (what did you do?)",
-        "SSH (port 22): encrypted remote management — preferred over Telnet (plain text)",
-        "SSH setup requires: unique hostname + IP domain name + RSA keys + local user account",
-        "login block-for [secs] attempts [n] within [secs] — mitigates brute-force attacks",
-        "service password-encryption — encrypts all plain-text passwords in config file",
-        "enable secret — uses MD5 encryption; stronger than enable password"
-      ]
-    }
-  };
+  const shuffled = shuffle([...FLASHCARDS]);
+  let idx = 0;
+  let flipped = false;
 
-  function renderNotes() {
-    const container = document.getElementById('notes-container');
-    container.innerHTML = `
-      <div class="notes-grid">
-        ${Object.entries(NOTES).map(([num, note]) => `
-          <div class="note-card">
-            <h3><span>${note.icon}</span> Module ${num}: ${note.title}</h3>
-            <ul class="note-list">
-              ${note.items.map(item => `<li>${item}</li>`).join('')}
-            </ul>
-          </div>
-        `).join('')}
+  const wrap = el('div','flash-wrap');
+  wrap.id = 'flash-wrap';
+  root.appendChild(wrap);
+
+  function draw() {
+    wrap.innerHTML = `
+      <div class="flash-counter">Card ${idx+1} of ${shuffled.length}</div>
+      <div class="flash-card ${flipped?'flipped':''}" id="fc">
+        <div class="flash-side-label">${flipped ? 'Answer' : 'Question'}</div>
+        <div class="flash-text">${flipped ? shuffled[idx].a : shuffled[idx].q}</div>
+        <div class="flash-tip">${flipped ? '(click to see question)' : '(click to reveal answer)'}</div>
       </div>
-    `;
-  }
-
-  /* --------------------------------------------------
-     FLASHCARDS
-  -------------------------------------------------- */
-  const FLASHCARDS = [
-    { q: "What is the difference between a LAN and a WAN?", a: "LAN covers a small area (home/office). WAN spans large geographic areas (cities/countries), often connecting multiple LANs." },
-    { q: "What is an Intranet vs Extranet?", a: "Intranet: private network internal to an organization. Extranet: allows controlled external access to partners/suppliers/customers." },
-    { q: "What is BYOD?", a: "Bring Your Own Device — policy allowing personal devices (laptops, phones) to connect to a corporate/campus network." },
-    { q: "What are the 7 OSI layers in order?", a: "1-Physical, 2-Data Link, 3-Network, 4-Transport, 5-Session, 6-Presentation, 7-Application. Mnemonic: 'Please Do Not Throw Sausage Pizza Away'" },
-    { q: "What are the 4 TCP/IP model layers?", a: "Network Access, Internet, Transport, Application. (Network Access = OSI Physical + Data Link; Internet = OSI Network)" },
-    { q: "What is the PDU at the Transport, Network, Data Link, and Physical layers?", a: "Transport → Segment; Network → Packet; Data Link → Frame; Physical → Bits" },
-    { q: "What is encapsulation?", a: "The process of adding headers (and trailers) to data as it moves down the protocol stack before transmission." },
-    { q: "What is the default IOS prompt for User EXEC mode vs Privileged EXEC mode?", a: "User EXEC: Router> (greater than). Privileged EXEC: Router# (hash/pound sign)." },
-    { q: "How do you save the running configuration so it survives a reboot?", a: "copy running-config startup-config — copies RAM → NVRAM." },
-    { q: "What command encrypts all plain-text passwords in the config?", a: "service password-encryption (entered in global config mode)" },
-    { q: "What is the difference between 'enable password' and 'enable secret'?", a: "enable secret is encrypted with MD5 and is more secure. 'enable password' stores in plain text (unless service password-encryption is used)." },
-    { q: "What is bandwidth vs throughput vs latency?", a: "Bandwidth = max capacity of medium (bps). Throughput = actual measured speed. Latency = time delay to travel from source to destination." },
-    { q: "What causes crosstalk in UTP cable, and how is it reduced?", a: "Crosstalk is caused by the magnetic field of adjacent wire pairs. Reduced by twisting opposing circuit wire pairs together." },
-    { q: "What is the max segment length for standard UTP Ethernet?", a: "100 meters (Cat5e/Cat6 UTP per IEEE standard)" },
-    { q: "Straight-through vs crossover cable — which connects PC to switch?", a: "Straight-through: connects UNLIKE devices (PC → switch, router → switch). Crossover: connects LIKE devices (switch → switch). Auto-MDIX eliminates this need on modern equipment." },
-    { q: "What are the LLC and MAC sublayers responsible for?", a: "LLC: identifies upper-layer protocols, software-implemented. MAC: hardware addressing (MAC addresses) + controls media access, hardware-implemented in NIC." },
-    { q: "What is the purpose of the FCS / CRC in an Ethernet frame?", a: "Error detection — the receiver recalculates the CRC; if it doesn't match, the frame is discarded. (Not error correction)" },
-    { q: "What is the difference between store-and-forward and cut-through switching?", a: "Store-and-forward: buffers entire frame, checks CRC for errors — higher latency, no bad frames forwarded. Cut-through: forwards after reading dest MAC — lower latency, may forward errors." },
-    { q: "What does CSMA/CD do?", a: "Carrier Sense Multiple Access with Collision Detection — used by legacy Ethernet. Devices listen before transmitting; if collision occurs, they back off and retry." },
-    { q: "What does CSMA/CA do?", a: "Carrier Sense Multiple Access with Collision Avoidance — used by 802.11 WLAN. Devices wait before transmitting to try to avoid collisions." },
-    { q: "What is a broadcast MAC address?", a: "FF:FF:FF:FF:FF:FF — a frame with this destination is received and processed by ALL devices on the local network segment." },
-    { q: "What are the three key characteristics of IP?", a: "1. Connectionless (no prior connection setup). 2. Best-effort (no guaranteed delivery). 3. Media-independent (works over any media type)." },
-    { q: "What does the TTL field do in an IPv4 packet?", a: "Time-to-Live: decremented by 1 at each router hop. When TTL reaches 0, the packet is dropped — prevents routing loops." },
-    { q: "What is the IPv4 Protocol field used for?", a: "Identifies the Layer 4 protocol carried in the packet. 6 = TCP, 17 = UDP, 1 = ICMP." },
-    { q: "What is ARP and when is it used?", a: "Address Resolution Protocol — resolves a known IPv4 address to a MAC address. Used when a host knows the destination IP but needs the MAC for framing." },
-    { q: "What is the destination MAC address of an ARP request?", a: "FF:FF:FF:FF:FF:FF (broadcast) — sent to all devices on the local network. Only the device with the matching IP responds." },
-    { q: "Why is NAT not needed in IPv6?", a: "IPv6 has an enormous address space (2^128), so every device can have a unique public address — eliminating the need to share addresses via NAT." },
-    { q: "What replaces ARP in IPv6?", a: "NDP (Neighbor Discovery Protocol) — uses Neighbor Solicitation (NS) and Neighbor Advertisement (NA) ICMPv6 messages." },
-    { q: "What is a default gateway?", a: "The router interface on the same network as the host, used to forward traffic to remote networks. If misconfigured, the host can communicate locally but not remotely." },
-    { q: "What are the three types of malware?", a: "Virus: attaches to files, needs user action. Worm: self-replicates, no user action needed. Trojan horse: disguised as legitimate software." },
-    { q: "What is the difference between a DoS and a DDoS attack?", a: "DoS: single source floods a target. DDoS: Distributed DoS uses many compromised hosts (botnet) to amplify the attack." },
-    { q: "What is a reconnaissance attack?", a: "Information gathering — the attacker maps the network to discover vulnerabilities before launching a real attack. Tools: nslookup, fping, ping sweep." },
-    { q: "What are the three components of AAA?", a: "Authentication (verify identity), Authorization (grant resource access), Accounting (track user activity/logging)." },
-    { q: "What three things are required to configure SSH on a Cisco router?", a: "1. Unique hostname. 2. IP domain name (ip domain-name). 3. RSA key pair (crypto key generate rsa). Plus a local user account." },
-    { q: "What is stateful packet inspection in a firewall?", a: "Tracks the state of active connections and ensures incoming packets are legitimate responses to outbound requests — blocks unsolicited inbound traffic." },
-  ];
-
-  function renderFlashcards(moduleNum) {
-    flashState = { cards: shuffle([...FLASHCARDS]), current: 0, flipped: false };
-    const container = document.getElementById('flashcards-container');
-    renderFlashcard(container);
-  }
-
-  function startFlashcards(moduleNum) {
-    navigate('flashcards');
-    renderFlashcards(moduleNum);
-  }
-
-  function renderFlashcard(container) {
-    const { cards, current } = flashState;
-    const card = cards[current];
-    container.innerHTML = `
-      <div class="flashcard-wrap">
-        <div class="flashcard-counter">Card ${current + 1} of ${cards.length}</div>
-        <div class="flashcard" id="fc" onclick="App.flipCard()">
-          <div class="fc-label">${flashState.flipped ? 'Answer' : 'Question'}</div>
-          <div class="fc-text">${flashState.flipped ? card.a : card.q}</div>
-          <div class="fc-hint">${flashState.flipped ? '(click to see question)' : '(click to reveal answer)'}</div>
-        </div>
-        <div style="display:flex;gap:10px;justify-content:center;">
-          <button class="btn btn-ghost" onclick="App.prevCard()" ${current === 0 ? 'disabled' : ''}>← Prev</button>
-          <button class="btn btn-primary" onclick="App.nextCard()">
-            ${current + 1 < cards.length ? 'Next →' : 'Restart'}
-          </button>
-        </div>
-        <div style="margin-top:20px;text-align:center">
-          <button class="btn btn-ghost btn-sm" onclick="App.navigate('home')">← Back to Modules</button>
-        </div>
-      </div>
-    `;
-  }
-
-  function flipCard() {
-    flashState.flipped = !flashState.flipped;
-    renderFlashcard(document.getElementById('flashcards-container'));
-  }
-
-  function nextCard() {
-    if (flashState.current + 1 >= flashState.cards.length) {
-      flashState.cards = shuffle([...FLASHCARDS]);
-      flashState.current = 0;
-    } else {
-      flashState.current++;
-    }
-    flashState.flipped = false;
-    renderFlashcard(document.getElementById('flashcards-container'));
-  }
-
-  function prevCard() {
-    if (flashState.current > 0) flashState.current--;
-    flashState.flipped = false;
-    renderFlashcard(document.getElementById('flashcards-container'));
-  }
-
-  /* --------------------------------------------------
-     UTILS
-  -------------------------------------------------- */
-  function shuffle(arr) {
-    for (let i = arr.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [arr[i], arr[j]] = [arr[j], arr[i]];
-    }
-    return arr;
-  }
-
-  /* --------------------------------------------------
-     INIT
-  -------------------------------------------------- */
-  function init() {
-    document.querySelectorAll('[data-page]').forEach(btn => {
-      btn.addEventListener('click', () => navigate(btn.dataset.page));
+      <div class="flash-nav">
+        <button class="btn btn-ghost" id="fc-prev" ${idx===0?'disabled':''}>← Prev</button>
+        <button class="btn btn-primary" id="fc-next">${idx+1<shuffled.length?'Next →':'Restart'}</button>
+      </div>`;
+    $('fc').addEventListener('click', () => { flipped = !flipped; draw(); });
+    $('fc-prev').addEventListener('click', () => { if(idx>0){idx--;flipped=false;draw();} });
+    $('fc-next').addEventListener('click', () => {
+      if (idx+1 < shuffled.length) { idx++; flipped=false; draw(); }
+      else { idx=0; flipped=false; draw(); }
     });
-    navigate('home');
   }
+  draw();
+}
 
-  return { init, navigate, startQuiz, startFlashcards, selectOption, skipQuestion, nextQuestion, togglePredicted, flipCard, nextCard, prevCard };
-})();
+/* ── Public API ──────────────────────────────────── */
+window.App = {
+  navigate: (view, mod) => navigate(view, mod),
+  retryQuiz: () => {
+    const mid = State.quiz.moduleId;
+    State.quiz = {
+      moduleId: mid,
+      questions: shuffle([...QUIZ_DATA[mid]]),
+      current: 0,
+      answers: [],
+      hintOpen: false
+    };
+    const qr = $('quiz-root');
+    if (qr) { renderQuestion(); window.scrollTo(0, qr.offsetTop - 20); }
+  }
+};
 
-document.addEventListener('DOMContentLoaded', App.init);
+/* ── Init ───────────────────────────────────────── */
+document.querySelectorAll('[data-view]').forEach(el => {
+  el.addEventListener('click', () => navigate(el.dataset.view));
+});
+
+buildSidebar();
+navigate('home');
+updateFooter();

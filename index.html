@@ -3,110 +3,69 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Network Exam Prep – CCNA ITN Workbook</title>
-  <meta name="description" content="Interactive exam preparation workbook for Introduction to Computer Networks. Quizzes, flashcards and predicted exam questions for CCNA ITN modules 1, 2, 3, 4, 6, 8, and 16." />
+  <title>NetPrep – CCNA ITN Midterm Workbook</title>
+  <meta name="description" content="Interactive CCNA ITN midterm exam workbook. Topic recaps, practice quizzes with hints and explanations, predicted exam questions." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <div class="app">
 
-    <!-- HEADER -->
-    <header>
-      <div class="header-inner">
-        <div class="logo" onclick="App.navigate('home')">
-          <span>NET</span>PREP
-        </div>
-        <nav>
-          <button class="nav-btn active" data-page="home">Home</button>
-          <button class="nav-btn" data-page="quiz">Quiz</button>
-          <button class="nav-btn" data-page="predicted">Predicted Exam</button>
-          <button class="nav-btn" data-page="notes">Study Notes</button>
-          <button class="nav-btn" data-page="flashcards">Flashcards</button>
-        </nav>
+<div class="shell">
+
+  <!-- Mobile overlay -->
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  <!-- Mobile toggle -->
+  <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle menu">☰</button>
+
+  <!-- ─── Sidebar ─────────────────────────────────── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-name">NetPrep</div>
+      <div class="brand-sub">CCNA ITN · Intro to Networks · Midterm</div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-label">Modules</div>
+      <div id="module-nav-list"></div>
+
+      <div class="nav-divider"></div>
+      <div class="nav-label">Resources</div>
+
+      <div class="sidebar-link" data-view="predicted" id="nav-predicted">
+        📋 Predicted Exam Questions
       </div>
-    </header>
-
-    <!-- MAIN -->
-    <main>
-
-      <!-- HOME PAGE -->
-      <div class="page active" id="page-home">
-        <div class="home-hero">
-          <h1>Intro to <span>Computer Networks</span><br>Midterm Prep</h1>
-          <p>Interactive quizzes, flashcards, and predicted exam questions built from your CCNA ITN course materials.</p>
-          <div class="cta-row">
-            <button class="btn btn-primary btn-lg" onclick="App.navigate('quiz')">Start Quizzing →</button>
-            <button class="btn btn-ghost btn-lg" onclick="App.navigate('predicted')">Predicted Questions</button>
-            <button class="btn btn-ghost btn-lg" onclick="App.startFlashcards()">Flashcards</button>
-          </div>
-        </div>
-
-        <div class="stats-row">
-          <div class="stat-card">
-            <div class="num">7</div>
-            <div class="lbl">Modules</div>
-          </div>
-          <div class="stat-card">
-            <div class="num">105+</div>
-            <div class="lbl">Quiz Questions</div>
-          </div>
-          <div class="stat-card">
-            <div class="num">14</div>
-            <div class="lbl">Predicted Q's</div>
-          </div>
-          <div class="stat-card">
-            <div class="num">35</div>
-            <div class="lbl">Flashcards</div>
-          </div>
-        </div>
-
-        <div class="section-title">Modules Covered</div>
-        <div class="modules-grid" id="modules-grid">
-          <!-- Rendered by JS -->
-        </div>
+      <div class="sidebar-link" data-view="notes" id="nav-notes">
+        📝 Study Notes
       </div>
-
-      <!-- QUIZ PAGE -->
-      <div class="page" id="page-quiz">
-        <div id="quiz-container">
-          <!-- Rendered by JS -->
-        </div>
+      <div class="sidebar-link" data-view="flashcards" id="nav-flashcards">
+        🃏 Flashcards
       </div>
-
-      <!-- PREDICTED PAGE -->
-      <div class="page" id="page-predicted">
-        <div style="margin-bottom:24px">
-          <div class="section-title">Predicted Midterm Questions</div>
-          <p style="font-size:14px;color:var(--text2)">Based on CCNA 200-301 exam patterns and your module topics. These question styles frequently appear on network fundamentals exams.</p>
-        </div>
-        <div id="predicted-container"></div>
+      <div class="sidebar-link" data-view="home" id="nav-home">
+        🏠 Home
       </div>
+    </nav>
 
-      <!-- NOTES PAGE -->
-      <div class="page" id="page-notes">
-        <div style="margin-bottom:24px">
-          <div class="section-title">Study Notes</div>
-          <p style="font-size:14px;color:var(--text2)">Key facts and definitions from each module. Use these for quick review before your exam.</p>
-        </div>
-        <div id="notes-container"></div>
+    <div class="sidebar-footer">
+      <div class="footer-stat" id="footer-stat">0 / 105 questions answered</div>
+      <div class="footer-bar">
+        <div class="footer-bar-fill" id="footer-bar-fill" style="width:0%"></div>
       </div>
+    </div>
+  </aside>
 
-      <!-- FLASHCARDS PAGE -->
-      <div class="page" id="page-flashcards">
-        <div style="margin-bottom:24px">
-          <div class="section-title">Flashcards</div>
-          <p style="font-size:14px;color:var(--text2)">Click a card to reveal the answer. Covers key concepts from all 7 modules.</p>
-        </div>
-        <div id="flashcards-container"></div>
-      </div>
+  <!-- ─── Content ──────────────────────────────────── -->
+  <main class="content" id="content">
+    <div class="content-inner" id="content-inner">
+      <!-- rendered by app.js -->
+    </div>
+  </main>
 
-    </main>
-  </div>
+</div>
 
-  <script src="data/questions.js"></script>
-  <script src="js/app.js"></script>
+<script src="data/questions.js"></script>
+<script src="js/app.js"></script>
 </body>
 </html>
