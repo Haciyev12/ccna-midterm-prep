@@ -5,101 +5,80 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NetPrep — CCNA ITN Midterm Workbook</title>
   <meta name="description" content="A premium interactive workbook for CCNA Introduction to Networks. Topic recaps, quizzes with explanations, and predicted exam questions." />
-
-  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
 
-<div class="shell">
+<div id="reading-bar"><div id="reading-fill"></div></div>
 
-  <!-- Mobile overlay -->
+<div class="shell">
   <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
-  <!-- Mobile toggle -->
-  <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Open navigation">
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect y="3" width="18" height="1.5" rx="0.75" fill="currentColor"/><rect y="8.25" width="18" height="1.5" rx="0.75" fill="currentColor"/><rect y="13.5" width="18" height="1.5" rx="0.75" fill="currentColor"/></svg>
+  <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle menu">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect y="2.5" width="16" height="1.5" rx="0.75" fill="currentColor"/><rect y="7.25" width="16" height="1.5" rx="0.75" fill="currentColor"/><rect y="12" width="10" height="1.5" rx="0.75" fill="currentColor"/></svg>
   </button>
 
-  <!-- ── Sidebar ──────────────────────────────────── -->
+  <!-- SIDEBAR -->
   <aside class="sidebar" id="sidebar">
-
-    <!-- Brand -->
-    <div class="sidebar-brand" data-view="home">
-      <div class="sb-logo">
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-          <circle cx="10" cy="10" r="9" stroke="white" stroke-opacity="0.15" stroke-width="1.5"/>
-          <circle cx="10" cy="10" r="3" fill="white" fill-opacity="0.9"/>
-          <circle cx="3" cy="6" r="1.5" fill="white" fill-opacity="0.5"/>
-          <circle cx="17" cy="6" r="1.5" fill="white" fill-opacity="0.5"/>
-          <circle cx="3" cy="14" r="1.5" fill="white" fill-opacity="0.5"/>
-          <circle cx="17" cy="14" r="1.5" fill="white" fill-opacity="0.5"/>
-          <line x1="10" y1="10" x2="3" y2="6" stroke="white" stroke-opacity="0.3" stroke-width="1"/>
-          <line x1="10" y1="10" x2="17" y2="6" stroke="white" stroke-opacity="0.3" stroke-width="1"/>
-          <line x1="10" y1="10" x2="3" y2="14" stroke="white" stroke-opacity="0.3" stroke-width="1"/>
-          <line x1="10" y1="10" x2="17" y2="14" stroke="white" stroke-opacity="0.3" stroke-width="1"/>
+    <div class="sb-brand" data-view="home">
+      <div class="sb-brand-mark">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+          <circle cx="11" cy="11" r="2.5" fill="white"/>
+          <circle cx="11" cy="11" r="9" stroke="white" stroke-opacity="0.12" stroke-width="1"/>
+          <circle cx="3.5" cy="5" r="1.8" fill="white" fill-opacity="0.45"/>
+          <circle cx="18.5" cy="5" r="1.8" fill="white" fill-opacity="0.45"/>
+          <circle cx="3.5" cy="17" r="1.8" fill="white" fill-opacity="0.45"/>
+          <circle cx="18.5" cy="17" r="1.8" fill="white" fill-opacity="0.45"/>
+          <line x1="11" y1="11" x2="3.5" y2="5" stroke="white" stroke-opacity="0.25" stroke-width="0.8"/>
+          <line x1="11" y1="11" x2="18.5" y2="5" stroke="white" stroke-opacity="0.25" stroke-width="0.8"/>
+          <line x1="11" y1="11" x2="3.5" y2="17" stroke="white" stroke-opacity="0.25" stroke-width="0.8"/>
+          <line x1="11" y1="11" x2="18.5" y2="17" stroke="white" stroke-opacity="0.25" stroke-width="0.8"/>
         </svg>
-        <span class="sb-brand-name">NetPrep</span>
+        <div class="sb-brand-text">
+          <div class="sb-brand-name">NetPrep</div>
+          <div class="sb-brand-tag">CCNA ITN · Midterm</div>
+        </div>
       </div>
-      <div class="sb-brand-sub">CCNA ITN · Midterm</div>
     </div>
 
-    <!-- Nav -->
-    <nav class="sidebar-nav">
-      <div class="nav-section">
-        <div class="nav-label">Modules</div>
-        <div id="module-nav-list"></div>
-      </div>
+    <nav class="sb-nav">
+      <div class="sb-section-label">Modules</div>
+      <div id="module-nav-list"></div>
 
-      <div class="nav-section">
-        <div class="nav-label">Resources</div>
-        <div class="sidebar-link" data-view="predicted" id="nav-predicted">
-          <span class="sl-icon">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 3h10M2 7h7M2 11h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-          </span>
-          Predicted Exam
-        </div>
-        <div class="sidebar-link" data-view="notes" id="nav-notes">
-          <span class="sl-icon">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2" y="1.5" width="10" height="11" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M4.5 5h5M4.5 7.5h5M4.5 10h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-          </span>
-          Study Notes
-        </div>
-        <div class="sidebar-link" data-view="flashcards" id="nav-flashcards">
-          <span class="sl-icon">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="3" width="9" height="7" rx="1.5" stroke="currentColor" stroke-width="1.4"/><rect x="4" y="5.5" width="9" height="7" rx="1.5" stroke="currentColor" stroke-width="1.4" fill="white"/></svg>
-          </span>
-          Flashcards
-        </div>
-        <div class="sidebar-link" data-view="home" id="nav-home">
-          <span class="sl-icon">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1.5 7L7 2l5.5 5M3 6v5.5h3v-3h2v3h3V6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </span>
-          Home
-        </div>
+      <div class="sb-section-label" style="margin-top:16px">Resources</div>
+      <div class="sb-link" data-view="predicted" id="nav-predicted">
+        <span class="sb-link-icon"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 3.5h9M2 6.5h6M2 9.5h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>
+        Predicted Exam
+      </div>
+      <div class="sb-link" data-view="notes" id="nav-notes">
+        <span class="sb-link-icon"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1.5" y="1" width="10" height="11" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M4 5h5M4 7.5h3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></span>
+        Study Notes
+      </div>
+      <div class="sb-link" data-view="flashcards" id="nav-flashcards">
+        <span class="sb-link-icon"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1" y="2.5" width="8" height="6.5" rx="1.5" stroke="currentColor" stroke-width="1.3"/><rect x="4" y="4.5" width="8" height="6.5" rx="1.5" stroke="currentColor" stroke-width="1.3" fill="var(--sb-bg)"/></svg></span>
+        Flashcards
+      </div>
+      <div class="sb-link" data-view="home" id="nav-home">
+        <span class="sb-link-icon"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M1 6.5L6.5 1.5 12 6.5M2.5 5.5v5.5h3v-3h2v3h3V5.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        Home
       </div>
     </nav>
 
-    <!-- Footer -->
-    <div class="sidebar-footer">
-      <div class="sf-label">Overall Progress</div>
-      <div class="sf-bar">
-        <div class="sf-fill" id="footer-bar-fill" style="width:0%"></div>
+    <div class="sb-footer">
+      <div class="sb-footer-label">Overall Progress</div>
+      <div class="sb-footer-track">
+        <div class="sb-footer-fill" id="footer-bar-fill" style="width:0%"></div>
       </div>
-      <div class="sf-stat" id="footer-stat">0 / 105 answered</div>
+      <div class="sb-footer-stat" id="footer-stat">0 / 105 answered</div>
     </div>
-
   </aside>
 
-  <!-- ── Main ──────────────────────────────────────── -->
+  <!-- CONTENT -->
   <main class="content" id="content">
-    <div class="content-inner" id="content-inner">
-      <!-- rendered by app.js -->
-    </div>
+    <div class="content-inner" id="content-inner"></div>
   </main>
 
 </div>
