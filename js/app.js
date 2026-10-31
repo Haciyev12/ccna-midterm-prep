@@ -141,11 +141,10 @@ function renderHome(root){
   const hero=div('home-hero');
   hero.innerHTML=`
     <div class="hero-left">
-      <div class="hero-eyebrow"><span class="hero-dot"></span>CCNA ITN · Introduction to Networks · Midterm Workbook</div>
-      <h1 class="hero-h1">Master Computer<br>Networks <em>Before</em><br>Your Midterm.</h1>
-      <p class="hero-sub">Topic recaps, quizzes with per-answer explanations, hints, and predicted exam questions — built from your CCNA slides.</p>
+      <h1 class="hero-h1">CCNA ITN<br>Midterm<br>Workbook</h1>
+      <p class="hero-sub">Seven modules, 105 practice questions with explanations on every answer, hints, flashcards, and predicted exam questions — built from your CCNA slides.</p>
       <div class="hero-actions">
-        <button class="btn btn-primary btn-lg" id="h-start"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M7 3l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Start with Module 1</button>
+        <button class="btn btn-primary btn-lg" id="h-start">Start with Module 1</button>
         <button class="btn btn-ghost btn-lg" id="h-pred">Predicted Questions</button>
       </div>
       <div class="hero-stats">
@@ -169,7 +168,7 @@ function renderHome(root){
     const prog=State.progress[id]||{answered:0};
     const pct=Math.round((prog.answered/mod.questions)*100);
     const card=div('module-card'); card.style.setProperty('--mc',mod.color);
-    card.innerHTML=`<div class="mc-main"><div class="mc-watermark">${String(id).padStart(2,'0')}</div><div class="mc-top"><div class="mc-label"><span class="mc-label-dot"></span>Module ${id}</div><div class="mc-icon">${mod.icon}</div></div><div class="mc-title">${mod.title}</div><div class="mc-desc">${modDesc(+id)}</div><div class="mc-footer"><div class="mc-prog-wrap"><div class="mc-prog-bar"><div class="mc-prog-fill" id="hcp-${id}" style="width:${pct}%"></div></div><div class="mc-prog-label" id="hcl-${id}">${prog.answered} / ${mod.questions} questions</div></div><button class="btn btn-primary btn-sm" style="background:${mod.color};box-shadow:none;flex-shrink:0">Open →</button></div></div>`;
+    card.innerHTML=`<div class="mc-main"><div class="mc-watermark">${String(id).padStart(2,'0')}</div><div class="mc-top"><div class="mc-label"><span class="mc-label-dot"></span>Module ${id}</div><div class="mc-icon">${mod.icon}</div></div><div class="mc-title">${mod.title}</div><div class="mc-desc">${modDesc(+id)}</div><div class="mc-footer"><div class="mc-prog-wrap"><div class="mc-prog-bar"><div class="mc-prog-fill" id="hcp-${id}" style="width:${pct}%"></div></div><div class="mc-prog-label" id="hcl-${id}">${prog.answered} / ${mod.questions}</div></div><button class="btn btn-primary btn-sm" style="background:${mod.color};box-shadow:none;flex-shrink:0">Open</button></div></div>`;
     card.addEventListener('click',()=>navigate('module',+id));
     grid.appendChild(card);
   });
