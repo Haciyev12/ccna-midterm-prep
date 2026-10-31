@@ -192,19 +192,19 @@ function renderModule(root,mid){
   if(recap&&recap.sections.length){
     const rs=div('recap-section');
     const rh=div('recap-hdr');
-    rh.innerHTML=`<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1" y="1" width="11" height="11" rx="2" stroke="currentColor" stroke-width="1.3"/><path d="M4 4.5h5M4 7h3.5M4 9.5h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg><div class="recap-hdr-title">Topic Recap</div><div class="recap-hdr-line"></div>`;
+    rh.innerHTML=`<div class="recap-hdr-title"><svg width="15" height="15" viewBox="0 0 15 15" fill="none" style="vertical-align:middle;margin-right:7px;margin-bottom:1px"><rect x="1" y="1" width="13" height="13" rx="3" stroke="currentColor" stroke-width="1.4"/><path d="M4 5h7M4 7.5h5M4 10h7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>Topic Recap</div><div class="recap-hdr-line"></div><span class="recap-hdr-count">${recap.sections.length} sections</span>`;
     rs.appendChild(rh);
     if(mid===3){ const d=div(''); d.innerHTML=makeOSIDiagram(); rs.appendChild(d); }
     if(mid===6){ const d=div(''); d.innerHTML=makeFrameDiagram(); rs.appendChild(d); }
     recap.sections.forEach((sec,i)=>{
-      const det=document.createElement('details'); det.className='recap-block'; if(i===0)det.open=true;
-      const sum=document.createElement('summary');
-      sum.innerHTML=`<span class="sum-title">${sec.title}</span><span class="sum-arrow"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 3.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>`;
+      const det=document.createElement('details'); det.className='rk-block'; det.style.setProperty('--mc',mod.color); if(i===0)det.open=true;
+      const sum=document.createElement('summary'); sum.className='rk-summary';
+      sum.innerHTML=`<div class="rk-num">${String(i+1).padStart(2,'0')}</div><div class="rk-title">${sec.title}</div><span class="rk-chevron"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 5l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>`;
       det.appendChild(sum);
-      const body=div('recap-body');
-      if(sec.points){ const ul=document.createElement('ul'); ul.className='recap-points'; sec.points.forEach(p=>{ const li=document.createElement('li'); li.innerHTML=`<span class="rp-dot"></span><span>${p}</span>`; ul.appendChild(li); }); body.appendChild(ul); }
+      const body=div('rk-body');
+      if(sec.points){ const facts=div('rk-facts'); sec.points.forEach((p,pi)=>{ const fact=div('rk-fact'); fact.innerHTML=`<div class="rk-fact-num">${pi+1}</div><div class="rk-fact-content">${p}</div>`; facts.appendChild(fact); }); body.appendChild(facts); }
       if(sec.table){ const tbl=document.createElement('table'); tbl.className='recap-table'; const thead=mk('thead'); const hr=mk('tr'); sec.table.headers.forEach(h=>{ const th=mk('th'); th.innerHTML=h; hr.appendChild(th); }); thead.appendChild(hr); tbl.appendChild(thead); const tbody=mk('tbody'); sec.table.rows.forEach(row=>{ const tr=mk('tr'); row.forEach(cell=>{ const td=mk('td'); td.innerHTML=cell; tr.appendChild(td); }); tbody.appendChild(tr); }); tbl.appendChild(tbody); body.appendChild(tbl); }
-      if(sec.callout){ const c=div(`callout callout-${sec.callout.type}`); c.innerHTML=`<span class="callout-icon">${sec.callout.type==='trap'?'⚠':'💡'}</span><span>${sec.callout.text}</span>`; body.appendChild(c); }
+      if(sec.callout){ const c=div(`rk-callout rk-callout-${sec.callout.type}`); c.innerHTML=`<div class="rk-co-icon">${sec.callout.type==='trap'?'⚠️':'💡'}</div><div class="rk-co-text"><strong>${sec.callout.type==='trap'?'Watch out:':'Pro tip:'}</strong> ${sec.callout.text}</div>`; body.appendChild(c); }
       det.appendChild(body); rs.appendChild(det);
     });
     root.appendChild(rs);
